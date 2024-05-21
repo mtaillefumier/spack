@@ -8,7 +8,7 @@ import llnl.util.tty as tty
 from spack.package import *
 
 
-class Qmcpack(CMakePackage, CudaPackage):
+class Qmcpack(CMakePackage, CudaPackage, ROCmPackage):
     """QMCPACK, is a modern high-performance open-source Quantum Monte
     Carlo (QMC) simulation code."""
 
@@ -83,7 +83,9 @@ class Qmcpack(CMakePackage, CudaPackage):
         "combination with CUDA, only AFQMC will have CUDA.",
     )
     variant("ppconvert", default=False, description="Install with pseudopotential converter.")
-
+    variant("omp_offload", default=False, description="Install with GPU offloading")
+    variant("sycl", default=False, description="Install with sycl support")
+    variant("openmp", default=True, description="Enable OpenMP supoort")
     # Notes about CUDA-centric peculiarities:
     #
     # cuda variant implies mixed precision variant by default, but there is
@@ -122,6 +124,20 @@ class Qmcpack(CMakePackage, CudaPackage):
         when="+cuda",
         msg="A value for cuda_arch must be specified. Add cuda_arch=XX",
     )
+
+    conflicts(
+        "amdgpu_target=none",
+        when="+rocm",
+        msg="A value for amdgpu_target must be specified. Add amdgpu_target=XX",
+    )
+
+    # mark as conflict when +sycl and +cuda or +rocm are both specified
+    conflicts("+cuda", when="sycl")
+    conflicts("+rocm", when="sycl")
+    conflicts("+cuda", when="rocm")
+    conflicts("+rocm", when="cuda")
+    conflicts("+sycl", when="rocm")
+    conflicts("+sycl", when="cuda")
 
     # Omitted for now due to concretizer bug
     # conflicts('^intel-mkl+ilp64',
@@ -167,6 +183,9 @@ class Qmcpack(CMakePackage, CudaPackage):
     conflicts("%pgi", when="@:3.4.0 ^intel-mkl", msg=mkl_warning)
     conflicts("%llvm", when="@:3.4.0 ^intel-mkl", msg=mkl_warning)
 
+    # offloading support
+    conflicts("gcc@:12", when="omp_offloading", msg="openmp offloading support requires gcc 12 to be functional")
+
     # Dependencies match those in the QMCPACK manual.
     # FIXME: once concretizer can unite unconditional and conditional
     # dependencies, some of the '~mpi' variants below will not be necessary.
@@ -181,6 +200,11 @@ class Qmcpack(CMakePackage, CudaPackage):
     depends_on("mpi", when="+mpi")
     depends_on("python@3:", when="@3.9:")
 
+    # python dependencies for the tests
+    depends_on("py-numpy")
+    depends_on("py-h5py", type="build")
+    depends_on("py-mpi4py", when="+mpi", type="build")
+
     # HDF5
     depends_on("hdf5~mpi", when="~phdf5")
     depends_on("hdf5+mpi", when="+phdf5")
@@ -190,12 +214,17 @@ class Qmcpack(CMakePackage, CudaPackage):
     depends_on("lapack")
     depends_on("fftw-api@3")
 
+    # rocm dependencies
+    depends_on("hipblas", when="+rocm")
+    depends_on("rocsolver", when="+rocm")
+    depends_on("rocthrust", when="+rocm")
+
     # qmcpack data analysis tools
     # basic command line tool based on Python and NumPy
     # It may be necesseary to disable the blas and lapack
     # when building the 'py-numpy' package, but it should not be a hard
     # dependency on the 'py-numpy~blas~lapack' variant
-    depends_on("py-numpy", when="+da", type="run")
+    # conflicts("py-numpy", when="py-numpy~blas~lapack")
 
     # GUI is optional for data anlysis
     # py-matplotlib leads to a long complex DAG for dependencies
@@ -291,42 +320,62 @@ class Qmcpack(CMakePackage, CudaPackage):
         args.append("-DBOOST_ROOT={0}".format(self.spec["boost"].prefix))
         args.append("-DHDF5_ROOT={0}".format(self.spec["hdf5"].prefix))
 
-        # Default is MPI, serial version is convenient for cases, e.g. laptops
-        if "+mpi" in spec:
-            args.append("-DQMC_MPI=1")
-        else:
-            args.append("-DQMC_MPI=0")
+        # set cmake configuration options
+        args.extend(
+            [
+                # Default is MPI, serial version is convenient for cases, e.g. laptops
+                self.define_from_variant("QMC_MPI", "mpi"),
+                # Default is parallel collective I/O enabled
+                self.define_from_variant("ENABLE_PHDF5", "phdf5"),
+                # Default is real-valued single particle orbitals
+                self.define_from_variant("QMC_COMPLEX", "complex"),
+                # Enable / Disable auxiliary field quantum montecarlo
+                self.define_from_variant("BUILD_AFQMC", "afqmc"),
+                # When '-DQMC_CUDA=1', CMake automatically sets:
+                # '-DQMC_MIXED_PRECISION=1'
+                #
+                # There is a double-precision CUDA path, but it is not as well
+                # tested.
+                self.define_from_variant("ENABLE_OFFLOAD", "omp_offload"),
+                self.define_from_variant("QMC_OMP", "omp_offload"),
+                # ROCM support (it is off by default)
+                self.define_from_variant("ENABLE_HIP", "rocm"),
+                self.define_from_variant("ENABLE_ROCM", "rocm"),
+                # Mixed-precision versues double-precision CPU and GPU code
+                self.define_from_variant("QMC_MIXED_PRECISION", "mixed"),
+                # New Structure-of-Array (SOA) code, much faster than default
+                # Array-of-Structure (AOS) code.
+                # No support for local atomic orbital basis.
+                self.define_from_variant("ENABLE_SOA", "soa"),
+                self.define_from_variant("ENABLE_TIMERS", "timers"),
+                # ppconvert is not build by default because it may exhibit numerical
+                # issues on some systems
+                self.define_from_variant("BUILD_PPCONVERT", "ppconvert"),
+            ]
+        )
 
-        # Default is parallel collective I/O enabled
-        if "+phdf5" in spec:
-            args.append("-DENABLE_PHDF5=1")
-        else:
-            args.append("-DENABLE_PHDF5=0")
+        if "+rocm" in spec:
+            amdgpu_list = spec.variants["amdgpu_target"].value
+            amdgpu_arch = amdgpu_list[0]
+            if len(amdgpu_list) > 1:
+                raise InstallError(
+                    "QMCPACK only supports compilation for a single " "GPU architecture at a time"
+                )
+            args.append("-DCMAKE_HIP_ARCHITECTURES={0}".format(amdgpu_arch))
 
-        # Default is real-valued single particle orbitals
-        if "+complex" in spec:
-            args.append("-DQMC_COMPLEX=1")
-        else:
-            args.append("-DQMC_COMPLEX=0")
-
-        if "+afqmc" in spec:
-            args.append("-DBUILD_AFQMC=1")
-        else:
-            args.append("-DBUILD_AFQMC=0")
-
-        # When '-DQMC_CUDA=1', CMake automatically sets:
-        # '-DQMC_MIXED_PRECISION=1'
-        #
-        # There is a double-precision CUDA path, but it is not as well
-        # tested.
+            if "+omp_offload" in spec:
+                args.append("-DQMC_GPU_ARCHS={0}".format(amdgpu_arch))
 
         if "+cuda" in spec:
             # Cannot support both CUDA builds at the same time, see
             # earlier notes in this package.
-            if "+afqmc" in spec:
+
+            # The legacy cuda code is removed starting from 3.17
+            if "+afqmc" in spec or "+omp_offload" in spec or "@3.17:" in spec:
                 args.append("-DENABLE_CUDA=1")
             else:
                 args.append("-DQMC_CUDA=1")
+
             cuda_arch_list = spec.variants["cuda_arch"].value
             cuda_arch = cuda_arch_list[0]
             if len(cuda_arch_list) > 1:
@@ -337,28 +386,11 @@ class Qmcpack(CMakePackage, CudaPackage):
                 args.append("-DCMAKE_CUDA_ARCHITECTURES={0}".format(cuda_arch))
             else:
                 args.append("-DCUDA_ARCH=sm_{0}".format(cuda_arch))
+
+            if "+omp_offload" in spec:
+                args.append("-DQMC_GPU_ARCH=sm_{0}".format(cuda_arch))
         else:
             args.append("-DQMC_CUDA=0")
-
-        # Mixed-precision versues double-precision CPU and GPU code
-        if "+mixed" in spec:
-            args.append("-DQMC_MIXED_PRECISION=1")
-        else:
-            args.append("-DQMC_MIXED_PRECISION=0")
-
-        # New Structure-of-Array (SOA) code, much faster than default
-        # Array-of-Structure (AOS) code.
-        # No support for local atomic orbital basis.
-        if "+soa" in spec:
-            args.append("-DENABLE_SOA=1")
-        else:
-            args.append("-DENABLE_SOA=0")
-
-        # Manual Timers
-        if "+timers" in spec:
-            args.append("-DENABLE_TIMERS=1")
-        else:
-            args.append("-DENABLE_TIMERS=0")
 
         # Proper detection of optimized BLAS and LAPACK.
         # Based on the code from the deal II Spack package:
@@ -383,13 +415,6 @@ class Qmcpack(CMakePackage, CudaPackage):
             args.append("-DMKL_ROOT=%s" % env["MKLROOT"])
         else:
             args.append("-DENABLE_MKL=0")
-
-        # ppconvert is not build by default because it may exhibit numerical
-        # issues on some systems
-        if "+ppconvert" in spec:
-            args.append("-DBUILD_PPCONVERT=1")
-        else:
-            args.append("-DBUILD_PPCONVERT=0")
 
         return args
 
