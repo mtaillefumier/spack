@@ -117,8 +117,8 @@ class Cp2k(MakefilePackage, CMakePackage, CudaPackage, ROCmPackage):
     variant("pytorch", default=False, description="Enable libtorch support")
     variant("quip", default=False, description="Enable quip support")
     variant("mpi_f08", default=False, description="Use MPI F08 module")
-    variant("grpp", default=False, description="Enable libgrrp support", when="@master:")
-    variant("trexio", default=False, description="Enable Trex-IO support", when="@master:")
+    variant("grpp", default=False, description="Enable libgrrp support", when="@master")
+    variant("trexio", default=False, description="Enable Trex-IO support", when="@master")
     variant(
         "enable_regtests",
         default=False,
