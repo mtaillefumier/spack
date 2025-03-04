@@ -15,6 +15,8 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
     url = "https://github.com/deepmodeling/deepmd-kit/archive/refs/tags/v2.2.11.tar.gz"
     license("GNU-LGPL")
     maintainers("mtaillefumier")
+    
+    version("3.0.2", sha256="b828d3a44730ea852505abbdb24ea5b556f2bf8b16de5a9c76018ed1ced7121b")
     version("3.0.1", sha256="e842edbc2714bc948ce708c411e5fed751e67c88d5c493c2978f11c849027dca")
     version(
         "3.0.0",
@@ -46,7 +48,7 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
     variant("rocm", default=False, description="Enable rocm support")
     variant("gromacs", default=False, description="Enable gromacs plugins")
     variant("horovod", default=True, description="Enable horovod support")
-    variant("jax", default=False, description="Enable JaX support", when="@3.0:")
+    variant("jax", default=False, description="Enable JaX support", when="@3.0:+tensorflow")
     variant("fp64", default=True, description="Enable double precision ops", when="+tensorflow")
     variant("fp64", default=False, description="Enable double precision ops", when="+pytorch")
     # deepmd library uses cmake as a build system but deepmd itself uses pip.
@@ -76,8 +78,9 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
     depends_on("py-pip", type="build")
     depends_on("python@3.10:")
     depends_on("py-h5py")
-    depends_on("py-jax", when="+jax")
-
+    depends_on("py-jax@0.4.33:", when="+jax+tensorflow")
+   
+    conflicts("py-jax", when="~tensorflow")
     # horovod needs some special settings
     depends_on("py-horovod controllers=mpi", when="+horovod")
     depends_on("py-horovod frameworks=tensorflow", when="+tensorflow+horovod")
@@ -106,6 +109,9 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
 
     root_cmakelists_dir = "source"
 
+
+    patch("cmake-patch.diff", when="%gcc@14")
+
     def setup_build_environment(self, env):
         if "+cuda" in self.spec:
             env.set("DP_VARIANT", "cuda")
@@ -129,6 +135,8 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
         args = [
             self.define_from_variant("USE_CUDA_TOOLKIT", "cuda"),
             self.define_from_variant("USE_ROCM_TOOLKIT", "rocm"),
+            self.define_from_variant("ENABLE_TENSORFLOW", "tensorflow"),
+            self.define_from_variant("ENABLE_PYTORCH", "pytorch"),
             self.define_from_variant("USE_TF_PYTHON_LIBS", "tensorflow"),
             self.define_from_variant("ENABLE_JAX", "jax"),
         ]
