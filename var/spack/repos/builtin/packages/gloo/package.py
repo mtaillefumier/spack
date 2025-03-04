@@ -14,6 +14,7 @@ class Gloo(CMakePackage, CudaPackage):
     license("BSD-3-Clause")
 
     version("master", branch="master")
+    version("2025-25-02", commit="5ca057d6cc57f8b88db1adf56c63829ffe6f0558")
     version("2023-12-03", commit="5354032ea08eadd7fc4456477f7f7c6308818509")  # py-torch@2.3:
     version("2023-05-19", commit="597accfd79f5b0f9d57b228dec088ca996686475")  # py-torch@2.1:2.2
     version("2023-01-17", commit="10909297fedab0a680799211a299203e53515032")  # py-torch@2.0
@@ -31,6 +32,8 @@ class Gloo(CMakePackage, CudaPackage):
     version("2018-04-06", commit="aad0002fb40612e991390d8e807f247ed23f13c5")  # py-torch@:0.4.0
 
     variant("libuv", default=False, description="Build libuv transport")
+    variant("nccl",  default=False, description="Enable nccl support", when="+cuda")
+    variant("fpic",  default=True,  description="Enable position independent code")
 
     # Gloo does not build on Linux >=6.0.3 (fixed in master)
     # See: https://github.com/facebookincubator/gloo/issues/345
@@ -46,6 +49,7 @@ class Gloo(CMakePackage, CudaPackage):
         when="@2021-05-21:2022-05-18",
     )
 
+    # the build fails with gcc 14 and cuda 12.8, requiring the use c++17 even for cuda. 
     patch("gloo-cuda12.8.gcc14.patch", when="%gcc@14")
     generator("ninja")
 
@@ -56,9 +60,11 @@ class Gloo(CMakePackage, CudaPackage):
     depends_on("libuv@1.26:", when="+libuv")
     depends_on("cmake@2.8.12:", type="build")
     depends_on("libuv", when="platform=windows")
-
+    depends_on("nccl", when="+nccl")
     def cmake_args(self):
         return [
             self.define_from_variant("USE_CUDA", "cuda"),
             self.define_from_variant("USE_LIBUV", "libuv"),
+            self.define_from_variant("USE_NCCL", "nccl"),
+            self.define_from_variant("CMAKE_POSITION_INDEPENDENT_CODE", "fpic"),
         ]
