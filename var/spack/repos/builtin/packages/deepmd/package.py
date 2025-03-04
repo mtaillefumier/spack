@@ -32,34 +32,6 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
         "2.2.11",
         sha256="d22893a08c2556c5cb29682378105849cf672545c91ee52b10a97da6e9075ac3",
     )
-    version(
-        "2.2.10",
-        sha256="c31ba1c8a3e874edbbaddc8ec61725a1b74734acb45578f820ab294835d12638",
-    )
-    version(
-        "2.2.9",
-        sha256="b14419367905b6dd938b9c54f91977c59c25da905a34a7b42585af4805fc4077",
-    )
-    version(
-        "2.2.8",
-        sha256="21c1e4a38caa81316df574af51f56aa2428dab7b0d71130250e407b81db80f29",
-    )
-    version(
-        "2.2.7",
-        sha256="25be126de336630493732b09d3b779b89cc916345b22dfb869cc4f3a3ba6dcde",
-    )
-    version(
-        "2.2.6",
-        sha256="3a4c61d9977b85d1600085dde67d3950f255ea2fcf12e9139d4d369167fce563",
-    )
-    version(
-        "2.2.5",
-        sha256="1b019f8fbd6d787bd0c03ef0f8160bfd7b6467f2646db5e3bda9153acf8ae878",
-    )
-    version(
-        "2.2.4",
-        sha256="e39ae25f1545b1cbd84b6122d97278414bbef08e1193a84f827ecdc748b8580b",
-    )
 
     variant(
         "tensorflow",
@@ -102,7 +74,7 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
     depends_on("py-scikit-build")
     depends_on("py-hatch-fancy-pypi-readme")
     depends_on("py-pip", type="build")
-    depends_on("python@3.7:")
+    depends_on("python@3.10:")
     depends_on("py-h5py")
     depends_on("py-jax", when="+jax")
 
@@ -143,7 +115,7 @@ class Deepmd(PythonExtension, CudaPackage, ROCmPackage, CMakePackage):
             env.set("DP_ENABLE_TENSORFLOW", "1")
         if "+pytorch +fp64" in self.spec:
             env.set("DP_ENABLE_PYTORCH", "1")
-    # it is a python package at the origin but we need the c++ library for other projects
+    # it is a python package but we need the c++ library for other projects
     # pip will install the library but put it in a very incovenient location so we build the library
     # first as cmake package and then build the package as a python extenstion.
 
