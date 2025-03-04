@@ -1,0 +1,60 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e064901..6add2c9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,7 +19,9 @@ project(horovod CXX)
+ set(CMAKE_CXX_STANDARD 14)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_CXX_EXTENSIONS OFF)
+-
++set(CMAKE_CUDA_STANDARD 14)
++set(CMAKE_CUDA_STANDARD_REQUIRED ON)
++set(CMAKE_CUDA_ARCHITECTURES 70)
+ # Configure path to modules (for find_package)
+ set(CMAKE_MODULE_PATH
+         ${CMAKE_MODULE_PATH}
+@@ -75,8 +77,6 @@ list(APPEND SOURCES "${PROJECT_SOURCE_DIR}/horovod/common/common.cc"
+ # Default Macro
+ add_definitions(-DEIGEN_MPL2_ONLY=1)
+ 
+-# Remove platform default std
+-string(REGEX REPLACE  "-std=[^ ]+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+ # Pickup ar from environmental variable if available
+ if(DEFINED ENV{AR})
+     set(CMAKE_AR $ENV{AR})
+@@ -169,11 +169,6 @@ if(NOT CMAKE_CUDA_COMPILER)
+     endif()
+ endif()
+ if(CMAKE_CUDA_COMPILER)
+-    if((CMAKE_CXX_COMPILER_ID MATCHES GNU) AND (CMAKE_SYSTEM_PROCESSOR MATCHES ppc64le))
+-        if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0)
+-            set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++11")
+-        endif()
+-    endif()
+     enable_language(CUDA)
+ endif()
+ 
+@@ -382,7 +377,7 @@ if(HAVE_GLOO AND ((DEFINED Tensorflow_CXX17 AND Tensorflow_CXX17) OR (DEFINED Py
+     file(WRITE ${PROJECT_SOURCE_DIR}/third_party/compatible17_gloo/gloo/CMakeLists.txt "${GLOO_CMAKE}")
+     file(READ ${PROJECT_SOURCE_DIR}/third_party/compatible17_gloo/CMakeLists.txt GLOO_CMAKE)
+     string(REPLACE "-std=c++11" "-std=c++17" GLOO_CMAKE "${GLOO_CMAKE}")
+-    string(PREPEND GLOO_CMAKE "set(CMAKE_CXX_STANDARD 17)\n")
++    string(PREPEND GLOO_CMAKE "set(CMAKE_CXX_STANDARD 17) set(CMAKE_CUDA_STANDARD 17)\n")
+     file(WRITE ${PROJECT_SOURCE_DIR}/third_party/compatible17_gloo/CMakeLists.txt "${GLOO_CMAKE}")
+     add_subdirectory(third_party/compatible17_gloo)
+     if (Tensorflow_CXX11 OR Pytorch_CXX11)
+diff --git a/horovod/common/ops/cuda/CMakeLists.txt b/horovod/common/ops/cuda/CMakeLists.txt
+index 383185e..35839cc 100644
+--- a/horovod/common/ops/cuda/CMakeLists.txt
++++ b/horovod/common/ops/cuda/CMakeLists.txt
+@@ -6,8 +6,8 @@ MESSAGE(STATUS "HVD_NVCC_COMPILE_FLAGS = ${HVD_NVCC_COMPILE_FLAGS}")
+ 
+ # If we don't set CMAKE_CUDA_STANDARD, it will default to ${CMAKE_CXX_STANDARD} ("14" at this time). nvcc may fail if
+ # the --std=c++... argument is passed multiple times.
+-set(CMAKE_CUDA_STANDARD 11)
+-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
++#set(CMAKE_CUDA_STANDARD 14)
++#set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+ 
+ add_library(horovod_cuda_kernels cuda_kernels.cu)
+ target_compile_options(horovod_cuda_kernels PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:

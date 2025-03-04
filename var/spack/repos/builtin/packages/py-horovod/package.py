@@ -90,7 +90,9 @@ class PyHorovod(PythonPackage, CudaPackage):
 
     # Required dependencies
     depends_on("python@3.6:", type=("build", "run"), when="@0.20:")
-    depends_on("py-setuptools", type="build")
+    # setup tools needs pinning because of the removal of the test command.
+    # see https://setuptools.pypa.io/en/stable/history.html#v72-0-0
+    depends_on("py-setuptools@71.1.0", type="build")
     depends_on("py-cloudpickle", type=("build", "run"))
     depends_on("py-psutil", type=("build", "run"))
     depends_on("py-pyyaml", type=("build", "run"))
@@ -184,6 +186,9 @@ class PyHorovod(PythonPackage, CudaPackage):
     # https://gitlab.com/libeigen/eigen/-/commit/fd1dcb6b45a2c797ad4c4d6cc7678ee70763b4ed
     patch("eigen.patch", when="@0.21:0.25 target=aarch64:")
 
+
+    # gcc 14 build fix with cuda 12.8
+    patch("gcc14-cuda.patch", when="%gcc@14+cuda")
     @property
     def import_modules(self):
         modules = [
