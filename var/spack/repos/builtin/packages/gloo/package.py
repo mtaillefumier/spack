@@ -46,6 +46,7 @@ class Gloo(CMakePackage, CudaPackage):
         when="@2021-05-21:2022-05-18",
     )
 
+    patch("gloo-cuda12.8.gcc14.patch", when="%gcc@14")
     generator("ninja")
 
     depends_on("c", type="build")
