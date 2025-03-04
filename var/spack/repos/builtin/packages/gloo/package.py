@@ -14,7 +14,6 @@ class Gloo(CMakePackage, CudaPackage):
     license("BSD-3-Clause")
 
     version("master", branch="master")
-    version("2025-25-02", commit="5ca057d6cc57f8b88db1adf56c63829ffe6f0558")
     version("2023-12-03", commit="5354032ea08eadd7fc4456477f7f7c6308818509")  # py-torch@2.3:
     version("2023-05-19", commit="597accfd79f5b0f9d57b228dec088ca996686475")  # py-torch@2.1:2.2
     version("2023-01-17", commit="10909297fedab0a680799211a299203e53515032")  # py-torch@2.0
@@ -50,7 +49,7 @@ class Gloo(CMakePackage, CudaPackage):
     )
 
     # the build fails with gcc 14 and cuda 12.8, requiring the use c++17 even for cuda. 
-    patch("gloo-cuda12.8.gcc14.patch", when="%gcc@14")
+    patch("2023.12.03-gcc14-cuda128.patch", when="%gcc@14")
     generator("ninja")
 
     depends_on("c", type="build")

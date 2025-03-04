@@ -1,0 +1,45 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b0db65e..b4d0209 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
+ 
+ project(gloo CXX C)
+ 
++# set the different standards
++set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CUDA_STANDARD 17)
++set(CMAKE_C_STANDARD 11)
++
+ set(GLOO_VERSION_MAJOR 0)
+ set(GLOO_VERSION_MINOR 5)
+ set(GLOO_VERSION_PATCH 0)
+@@ -114,12 +119,6 @@ include(cmake/Dependencies.cmake)
+ include_directories(${PROJECT_SOURCE_DIR})
+ include_directories(${PROJECT_BINARY_DIR})
+ 
+-# Compiler flags
+-
+-if(NOT MSVC)
+-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
+-endif()
+-
+ # Recurse into main project directory
+ add_subdirectory(gloo)
+ 
+diff --git a/cmake/Cuda.cmake b/cmake/Cuda.cmake
+index d2ca212..88f243c 100644
+--- a/cmake/Cuda.cmake
++++ b/cmake/Cuda.cmake
+@@ -131,11 +131,6 @@ else()
+ 
+   # If the project including us doesn't set any -std=xxx directly, we set it to C++11 here.
+   set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+-  if((NOT "${GLOO_NVCC_FLAGS}" MATCHES "-std=c\\+\\+") AND (NOT "${GLOO_NVCC_FLAGS}" MATCHES "-std=gnu\\+\\+"))
+-    if(NOT MSVC)
+-      gloo_list_append_if_unique(GLOO_NVCC_FLAGS "-std=c++11")
+-    endif()
+-  endif()
+ 
+   mark_as_advanced(CUDA_BUILD_CUBIN CUDA_BUILD_EMULATION CUDA_VERBOSE_BUILD)
+   mark_as_advanced(CUDA_SDK_ROOT_DIR CUDA_SEPARABLE_COMPILATION)
